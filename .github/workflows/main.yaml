@@ -30,7 +30,7 @@ jobs:
           python-version: "3.11"
 
       # -------------------------
-      # CACHE PIP (FASTER)
+      # CACHE PIP
       # -------------------------
       - name: Cache pip
         uses: actions/cache@v4
@@ -46,8 +46,36 @@ jobs:
       - name: Install Requirements
         run: |
           pip install -r requirements.txt
+          pip install -U yt-dlp
           sudo apt-get update -y
-          sudo apt-get install -y ffmpeg aria2
+          sudo apt-get install -y ffmpeg aria2 wireguard resolvconf curl
+
+      # -------------------------
+      # 🌐 CHECK IP BEFORE VPN
+      # -------------------------
+      - name: Check IP (Before VPN)
+        run: |
+          echo "IP BEFORE VPN:"
+          curl -s https://api.ipify.org && echo
+
+      # -------------------------
+      # 🔐 SETUP WIREGUARD VPN
+      # -------------------------
+      - name: Setup WireGuard VPN
+        run: |
+          echo "${{ secrets.WG_CONF }}" > wg0.conf
+          sudo chmod 600 wg0.conf
+
+          # Bring up VPN
+          sudo wg-quick up ./wg0.conf
+
+      # -------------------------
+      # 🌐 CHECK IP AFTER VPN
+      # -------------------------
+      - name: Check IP (After VPN)
+        run: |
+          echo "IP AFTER VPN:"
+          curl -s https://api.ipify.org && echo
 
       # -------------------------
       # RUN SCRIPT
@@ -71,10 +99,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Add your files
           git add urls.txt processed.txt download_history.json || true
 
-          # Skip if no changes
           if git diff --cached --quiet; then
             echo "ℹ️ No changes to commit"
           else
@@ -82,3 +108,11 @@ jobs:
             git push origin HEAD:main
             echo "✅ Data committed"
           fi
+
+      # -------------------------
+      # 🔻 STOP VPN (CLEANUP)
+      # -------------------------
+      - name: Stop VPN
+        if: always()
+        run: |
+          sudo wg-quick down ./wg0.conf || true
