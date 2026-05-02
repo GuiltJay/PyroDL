@@ -405,7 +405,24 @@ async def download_worker(app: Client, dl_queue: asyncio.Queue):
             },
         }
 
+        def probe_url(url: str) -> dict | None:
+         try:
+            with yt_dlp.YoutubeDL({
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+            "skip_download": True,
+            }) as ydl:
+                return ydl.extract_info(url, download=False)
+         except Exception as e:
+          print(f"[PROBE FAIL] {url} -> {e}")
+          return None
+        
+
         def _do_download():
+            info = probe_url(url)
+            if not info:
+                raise Exception("Metadata extraction failed (probe)")
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info  = ydl.extract_info(url, download=True)
                 fname = Path(ydl.prepare_filename(info))
