@@ -1,0 +1,4 @@
+pyrofork==2.2.11
+tgcrypto==1.2.5
+yt-dlp
+python-dotenv==1.0.1

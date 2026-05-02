@@ -1,0 +1,71 @@
+name: Main Scraper
+
+on:
+  schedule:
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  scrape-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      # -------------------------
+      # CHECKOUT
+      # -------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # -------------------------
+      # PYTHON SETUP
+      # -------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # -------------------------
+      # INSTALL REQUIREMENTS
+      # -------------------------
+      - name: Install Requirements
+        run: |
+          pip install -r requirements.txt
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg aria2
+
+      # -------------------------
+      # RUN SCRIPT (FIXED)
+      # -------------------------
+      - name: Run PyroDL
+        env:
+          API_ID: ${{ secrets.API_ID }}
+          API_HASH: ${{ secrets.API_HASH }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+          QUALITY: "1080"
+          REPORT_SCHEDULE: "none"
+        run: |
+          python main.py
+
+      # -------------------------
+      # COMMIT GENERATED FILES
+      # -------------------------
+      - name: Commit generated files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add download_history.json || true
+
+          if git diff --cached --quiet; then
+            echo "ℹ️ No changes to commit"
+          else
+            git commit -m "chore(data): update scraper results ($(date -u +'%Y-%m-%d %H:%M:%S UTC'))"
+            git push origin main
+            echo "✅ Data committed"
+          fi
