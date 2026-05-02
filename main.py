@@ -636,10 +636,7 @@ async def upload_worker(app: Client):
 
 async def handle_url(app: Client, message):
     url = (message.text or "").strip()
-    if not (url.startswith("http://") or url.startswith("https://")):
-        await message.reply("⚠️ Please send a valid URL starting with `http://` or `https://`.")
-        return
-
+    
     processed = load_processed()
     if url in processed:
         await message.reply(f"⚠️ This URL has already been downloaded.\n🔗 `{url}`")
