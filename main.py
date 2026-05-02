@@ -33,6 +33,13 @@ HISTORY_FILE   = Path("download_history.json")
 MAX_UPLOAD_BYTES = 1_900 * 1024 * 1024  # 1.9 GB Telegram bot limit
 MAX_RETRIES      = 3
 BAR_LENGTH       = 12
+DAILY_LIMIT      = int(os.environ.get("DAILY_LIMIT", "100"))
+DAILY_COUNT_FILE = Path("daily_count.json")
+USER_AGENT       = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/125.0.0.0 Safari/537.36"
+)
 
 # ── Global shared state ───────────────────────────────────────────────────────
 _g = {
@@ -85,6 +92,34 @@ def save_history(entry: dict):
     history = load_history()
     history.append(entry)
     HISTORY_FILE.write_text(json.dumps(history, indent=2))
+
+
+def _today_str() -> str:
+    return datetime.date.today().isoformat()
+
+def get_daily_count() -> int:
+    if not DAILY_COUNT_FILE.exists():
+        return 0
+    try:
+        data = json.loads(DAILY_COUNT_FILE.read_text())
+        return data.get(_today_str(), 0)
+    except Exception:
+        return 0
+
+def increment_daily_count():
+    data: dict = {}
+    if DAILY_COUNT_FILE.exists():
+        try:
+            data = json.loads(DAILY_COUNT_FILE.read_text())
+        except Exception:
+            data = {}
+    today = _today_str()
+    data[today] = data.get(today, 0) + 1
+    # Prune old days (keep only last 7)
+    keys = sorted(data.keys())
+    for old_key in keys[:-7]:
+        del data[old_key]
+    DAILY_COUNT_FILE.write_text(json.dumps(data, indent=2))
 
 
 # ── Format helpers ────────────────────────────────────────────────────────────
@@ -323,6 +358,27 @@ async def download_worker(app: Client, dl_queue: asyncio.Queue):
         DOWNLOADS_DIR.mkdir(exist_ok=True)
         tmp_dir = Path(tempfile.mkdtemp(dir=DOWNLOADS_DIR))
 
+        # ── Daily limit gate ──────────────────────────────────────────────
+        daily_count = get_daily_count()
+        if daily_count >= DAILY_LIMIT:
+            err = f"Daily download limit reached ({DAILY_LIMIT}/day). Try again tomorrow."
+            print(f"[LIMIT] {err}")
+            _g["session"]["fail"] += 1
+            _g["session"]["errors"].append((url, err))
+            stop.set()
+            await updater
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            try:
+                await msg.edit_text(
+                    f"🚫 **Daily Limit Reached**\n{DIVIDER}\n"
+                    f"📊 Downloaded today: **{daily_count}/{DAILY_LIMIT}**\n"
+                    f"⏳ Limit resets at midnight. Try again tomorrow."
+                )
+            except Exception:
+                pass
+            _g["downloading"] = None
+            continue
+
         ydl_opts = {
             "outtmpl": str(tmp_dir / "%(title)s.%(ext)s"),
             "format": build_format(QUALITY),
@@ -332,6 +388,21 @@ async def download_worker(app: Client, dl_queue: asyncio.Queue):
             "noplaylist": True,
             "progress_hooks": [make_download_hook(state)],
             "extractor_retries": 3,
+            "http_headers": {
+                "User-Agent": USER_AGENT,
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+            "external_downloader": "aria2c",
+            "external_downloader_args": {
+                "aria2c": [
+                    "--max-connection-per-server=16",
+                    "--split=16",
+                    "--min-split-size=1M",
+                    "--console-log-level=warn",
+                    "--quiet=true",
+                    "--allow-overwrite=true",
+                ]
+            },
         }
 
         def _do_download():
@@ -491,6 +562,7 @@ async def upload_worker(app: Client):
             _g["session"]["ok"]    += 1
             _g["session"]["bytes"] += total_size
             mark_processed(url)
+            increment_daily_count()
             save_history({
                 "date":     datetime.datetime.utcnow().isoformat(),
                 "title":    title,
@@ -599,11 +671,13 @@ async def handle_status(_, message):
     else:
         lines.append("📤 No active upload")
 
+    daily = get_daily_count()
     lines += [
         f"\n📋 Queue: **{len(_g['queue'])}** remaining",
         f"✅ Done: **{sess['ok']}**   ❌ Failed: **{sess['fail']}**",
         f"📦 Uploaded: **{fmt_size(sess['bytes'])}**",
         f"⏱ Running: **{fmt_eta(elapsed)}**",
+        f"📅 Today: **{daily}/{DAILY_LIMIT}** downloads",
     ]
     await message.reply("\n".join(lines))
 
