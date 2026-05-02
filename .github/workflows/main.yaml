@@ -30,6 +30,17 @@ jobs:
           python-version: "3.11"
 
       # -------------------------
+      # CACHE PIP (FASTER)
+      # -------------------------
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # -------------------------
       # INSTALL REQUIREMENTS
       # -------------------------
       - name: Install Requirements
@@ -39,7 +50,7 @@ jobs:
           sudo apt-get install -y ffmpeg aria2
 
       # -------------------------
-      # RUN SCRIPT (FIXED)
+      # RUN SCRIPT
       # -------------------------
       - name: Run PyroDL
         env:
@@ -48,7 +59,7 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
           QUALITY: "1080"
-          REPORT_SCHEDULE: "none"
+          REPORT_SCHEDULE: "daily"
         run: |
           python main.py
 
@@ -60,12 +71,14 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add download_history.json || true
+          # Add your files
+          git add urls.txt processed.txt download_history.json || true
 
+          # Skip if no changes
           if git diff --cached --quiet; then
             echo "ℹ️ No changes to commit"
           else
-            git commit -m "chore(data): update scraper results ($(date -u +'%Y-%m-%d %H:%M:%S UTC'))"
-            git push origin main
+            git commit -m "data: update scraper files ($(date -u +'%Y-%m-%d %H:%M:%S UTC'))"
+            git push origin HEAD:main
             echo "✅ Data committed"
           fi
