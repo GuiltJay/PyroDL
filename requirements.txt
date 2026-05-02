@@ -1,4 +1,4 @@
-tgcrypto
+kurigram
 tgcrypto
 yt-dlp
 gallery-dl
