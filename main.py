@@ -839,11 +839,11 @@ async def main():
     async def _summary(client, message):
         await handle_summary_cmd(client, message)
 
-    @app.on_message(filters.text & ~filters.command(["status", "queue", "summary"]))
+    @app.on_message(filters.private & filters.text & ~filters.command(["status", "queue", "summary"]))
     async def _url_msg(client, message):
         await handle_url(client, message)
-
-    keep_alive = asyncio.Event()  # never set — keeps bot alive for commands/reports
+        
+    keep_alive = asyncio.Event() 
 
     async with app:
         print("[INFO] Bot started. Send any URL to the bot to queue a download.")
