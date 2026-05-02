@@ -48,15 +48,15 @@ jobs:
           pip install -r requirements.txt
           pip install -U yt-dlp
           sudo apt-get update -y
-          sudo apt-get install -y ffmpeg aria2 wireguard resolvconf curl
+          sudo apt-get install -y ffmpeg aria2
 
       # -------------------------
       # 🌐 CHECK IP BEFORE VPN
       # -------------------------
-      - name: Check IP (Before VPN)
+      - name: Check IP
         run: |
           echo "IP BEFORE VPN:"
-          curl -s https://api.ipify.org && echo
+          curl -s https://ipapi.co/json/ && echo
 
       # -------------------------
       # RUN SCRIPT
@@ -70,7 +70,7 @@ jobs:
           QUALITY: "1080"
           REPORT_SCHEDULE: "daily"
         run: |
-          python mainecho
+          python main.py
       # -------------------------
       # COMMIT GENERATED FILES
       # -------------------------
@@ -95,4 +95,4 @@ jobs:
       - name: Stop VPN
         if: always()
         run: |
-          sudo wg-quick down ./wg0.conf || true
+           echo "Program Finished"
