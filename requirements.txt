@@ -1,4 +1,5 @@
-pyrofork==2.2.11
-tgcrypto==1.2.5
+tgcrypto
+tgcrypto
 yt-dlp
+gallery-dl
 python-dotenv==1.0.1
